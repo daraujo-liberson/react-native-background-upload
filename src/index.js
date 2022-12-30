@@ -35,7 +35,7 @@ const NativeModule =
   NativeModules.VydiaRNFileUploader || NativeModules.RNFileUploader; // iOS is VydiaRNFileUploader and Android is RNFileUploader
 const eventPrefix = 'RNFileUploader-';
 
-const eventEmitter = new NativeEventEmitter(NativeModule);
+const eventEmitter = Platform.OS === 'ios' ? new NativeEventEmitter(NativeModule) : new NativeEventEmitter();
 
 // add event listeners so they always fire on the native side
 // no longer needed.
