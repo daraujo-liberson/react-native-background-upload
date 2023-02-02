@@ -106,11 +106,11 @@ declare module "react-native-background-upload" {
         /**
          * controls how long (in seconds) to wait for an entire resource to transfer before giving up (https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408153-timeoutintervalforresource?language=objc)
          */
-        timeoutIntervalForResource: number, 
+        timeoutIntervalForResource?: number, 
         /**
          * controls how long (in seconds) a task should wait for additional data to arrive before giving up (https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408259-timeoutintervalforrequest)
          */
-        timeoutIntervalForRequest: number 
+        timeoutIntervalForRequest?: number 
     }
 
     export interface MultipartUploadOptions extends UploadOptions {
