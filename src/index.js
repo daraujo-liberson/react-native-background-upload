@@ -166,6 +166,14 @@ export const endBackgroundTask = (id: number) => {
   }
 };
 
+
+// init module configuration
+export const config = async (config)  => {
+  if (Platform.OS === 'ios') {
+    await NativeModule.config(config);
+  }
+};
+
 export default {
   startUpload,
   cancelUpload,
@@ -175,4 +183,5 @@ export default {
   getRemainingBgTime,
   beginBackgroundTask,
   endBackgroundTask,
+  config
 };

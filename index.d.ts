@@ -98,6 +98,12 @@ declare module "react-native-background-upload" {
         field?: string
     }
 
+    export type ConfigOptions = {
+        // Below are options only supported on iOS
+        timeoutIntervalForResource: number, // controls how long (in seconds) to wait for an entire resource to transfer before giving up (https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408153-timeoutintervalforresource?language=objc)
+        timeoutIntervalForRequest: number // controls how long (in seconds) a task should wait for additional data to arrive before giving up (https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408259-timeoutintervalforrequest)
+    }
+
     export interface MultipartUploadOptions extends UploadOptions {
         type: 'multipart'
         field: string
@@ -119,6 +125,7 @@ declare module "react-native-background-upload" {
         static addListener(event: 'cancelled', uploadId: uploadId | null, callback: (data: EventData) => void): EventSubscription
         static getFileInfo(path: string): Promise<FileInfo>
         static cancelUpload(uploadId: uploadId): Promise<boolean>
+        static config(options: ConfigOptions): Promise<void>
     }
 
 }

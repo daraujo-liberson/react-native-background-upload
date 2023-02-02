@@ -11,6 +11,8 @@
     NSMutableDictionary *_responsesData;
     NSURLSession *_urlSession;
     void (^backgroundSessionCompletionHandler)(void);
+    unsigned int timeoutIntervalForResource;
+    unsigned int timeoutIntervalForRequest;
 }
 
 RCT_EXPORT_MODULE();
@@ -35,6 +37,8 @@ static VydiaRNFileUploader *sharedInstance;
         _urlSession = nil;
         backgroundSessionCompletionHandler = nil;
         self.isObserving = NO;
+        timeoutIntervalForResource = 604800
+        timeoutIntervalForRequest = 60
     }
     return self;
 }
@@ -394,6 +398,38 @@ RCT_EXPORT_METHOD(endBackgroundTask: (NSUInteger)taskId resolve:(RCTPromiseResol
 }
 
 
+/*
+ * Config NSURLSessionConfiguration parameters.
+ * Options are passed in as the first argument as a js hash:
+ * {
+ *   timeoutIntervalForResource: number
+ *   timeoutIntervalForRequest: number
+ * }
+ *
+ * Returns a promise 
+ */
+RCT_EXPORT_METHOD(config:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+    @try{
+       
+        if (options[@"timeoutIntervalForResource"]) {
+            timeoutIntervalForResource = [options[@"timeoutIntervalForResource"] intValue];
+        }
+
+        if (options[@"timeoutIntervalForRequest"]) {
+            timeoutIntervalForRequest = [options[@"timeoutIntervalForRequest"] intValue];
+        }
+
+
+        NSLog(@"RNBU config sucess");
+        resolve();
+    }
+    @catch (NSException *exception) {
+        NSLog(@"RNBU config error: %@", exception);
+        reject(@"RN Uploader", exception.name, nil);
+    }
+}
+
 
 - (NSData *)createBodyWithBoundary:(NSString *)boundary
                          path:(NSString *)path
@@ -440,7 +476,11 @@ RCT_EXPORT_METHOD(endBackgroundTask: (NSUInteger)taskId resolve:(RCTPromiseResol
 
             // UPDATE: Enforce a timeout here because we will otherwise
             // not get errors if the server times out
-            sessionConfiguration.timeoutIntervalForResource = 5 * 60;
+            sessionConfiguration.timeoutIntervalForResource = timeoutIntervalForResource
+            sessionConfiguration.timeoutIntervalForRequest = timeoutIntervalForRequest
+
+            NSLog(@"RNBU config set timeoutIntervalForResource to %u", timeoutIntervalForResource);
+            NSLog(@"RNBU config set timeoutIntervalForRequest to %u", timeoutIntervalForRequest);
 
             _urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:self delegateQueue:nil];
         }
