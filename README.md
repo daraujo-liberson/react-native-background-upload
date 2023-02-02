@@ -32,10 +32,14 @@ const options = {
   headers: {
     'content-type': 'application/octet-stream', // Customize content-type
     'my-custom-header': 's3headervalueorwhateveryouneed'
-  },
+  }
+}
+
+//first config session parameters
+Upload.config({
   timeoutIntervalForResource: 604800, // controls how long (in seconds) to wait for an entire resource to transfer before giving up (https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408153-timeoutintervalforresource?language=objc)
   timeoutIntervalForRequest: 60 // controls how long (in seconds) a task should wait for additional data to arrive before giving up (https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408259-timeoutintervalforrequest)
-}
+})
 
 Upload.startUpload(options).then((uploadId) => {
   console.log('Upload started')
