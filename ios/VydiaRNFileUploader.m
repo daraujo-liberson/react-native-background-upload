@@ -37,8 +37,8 @@ static VydiaRNFileUploader *sharedInstance;
         _urlSession = nil;
         backgroundSessionCompletionHandler = nil;
         self.isObserving = NO;
-        timeoutIntervalForResource = 604800
-        timeoutIntervalForRequest = 60
+        timeoutIntervalForResource = 604800;
+        timeoutIntervalForRequest = 60;
     }
     return self;
 }
@@ -420,9 +420,8 @@ RCT_EXPORT_METHOD(config:(NSDictionary *)options resolve:(RCTPromiseResolveBlock
             timeoutIntervalForRequest = [options[@"timeoutIntervalForRequest"] intValue];
         }
 
-
-        NSLog(@"RNBU config sucess");
-        resolve();
+        //NSLog(@"RNBU config sucess");
+        resolve(nil);
     }
     @catch (NSException *exception) {
         NSLog(@"RNBU config error: %@", exception);
@@ -474,13 +473,11 @@ RCT_EXPORT_METHOD(config:(NSDictionary *)options resolve:(RCTPromiseResolveBlock
         if (_urlSession == nil) {
             NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:BACKGROUND_SESSION_ID];
 
-            // UPDATE: Enforce a timeout here because we will otherwise
-            // not get errors if the server times out
-            sessionConfiguration.timeoutIntervalForResource = timeoutIntervalForResource
-            sessionConfiguration.timeoutIntervalForRequest = timeoutIntervalForRequest
-
-            NSLog(@"RNBU config set timeoutIntervalForResource to %u", timeoutIntervalForResource);
-            NSLog(@"RNBU config set timeoutIntervalForRequest to %u", timeoutIntervalForRequest);
+            sessionConfiguration.timeoutIntervalForResource = timeoutIntervalForResource;
+            sessionConfiguration.timeoutIntervalForRequest = timeoutIntervalForRequest;
+            
+            //NSLog(@"RNBU config set timeoutIntervalForResource to %u", timeoutIntervalForResource);
+            //NSLog(@"RNBU config set timeoutIntervalForRequest to %u", timeoutIntervalForRequest);
 
             _urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:self delegateQueue:nil];
         }
