@@ -29,6 +29,7 @@ export type StartUploadArgs = {
   parameters?: { [string]: string },
   headers?: Object,
   notification?: NotificationArgs,
+  mode: 'background' | 'foreground'
 };
 
 const NativeModule =
@@ -160,10 +161,11 @@ export const beginBackgroundTask = (): Promise<number> => {
 
 // marks the end of background task using the id returned by begin
 // failing to call this might end up on app termination
-export const endBackgroundTask = (id: number) => {
+export const endBackgroundTask = async (id: number) : Promise<boolean>=> {
   if (Platform.OS === 'ios') {
-    NativeModule.endBackgroundTask(id);
+    return NativeModule.endBackgroundTask(id);
   }
+  return false
 };
 
 

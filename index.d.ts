@@ -95,7 +95,11 @@ declare module "react-native-background-upload" {
          */
         appGroup?: string;
         // Necessary only for multipart type upload
-        field?: string
+        field?: string,
+        /**
+         * IOS only, on android always in background
+         */
+        mode: 'background' | 'foreground'
     }
 
     /**
@@ -123,7 +127,7 @@ declare module "react-native-background-upload" {
 
     type uploadId = string
 
-    export type UploadListenerEvent = 'progress' | 'error' | 'completed' | 'cancelled'
+    export type UploadListenerEvent = 'progress' | 'error' | 'completed' | 'cancelled' | 'bgExpired'
 
 
     export default class Upload {
@@ -132,9 +136,14 @@ declare module "react-native-background-upload" {
         static addListener(event: 'error', uploadId: uploadId | null, callback: (data: ErrorData) => void): EventSubscription
         static addListener(event: 'completed', uploadId: uploadId | null, callback: (data: CompletedData) => void): EventSubscription
         static addListener(event: 'cancelled', uploadId: uploadId | null, callback: (data: EventData) => void): EventSubscription
+        static addListener(event: 'bgExpired', uploadId: uploadId | null, callback: (data: EventData) => void): EventSubscription
         static getFileInfo(path: string): Promise<FileInfo>
         static cancelUpload(uploadId: uploadId): Promise<boolean>
         static config(options: ConfigOptions): Promise<void>
+        static canSuspendIfBackground(): void
+        static beginBackgroundTask(): Promise<number>
+        static endBackgroundTask(id: number): Promise<boolean>
+        static getRemainingBgTime(): Promise<number>
     }
 
 }
