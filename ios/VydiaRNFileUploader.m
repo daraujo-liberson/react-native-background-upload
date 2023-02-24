@@ -10,7 +10,10 @@
     unsigned long uploadId;
     NSMutableDictionary *_responsesData;
     NSURLSession *_urlSession;
+    NSURLSession *_urlForegroundSession;
     void (^backgroundSessionCompletionHandler)(void);
+    unsigned int timeoutIntervalForResource;
+    unsigned int timeoutIntervalForRequest;
 }
 
 RCT_EXPORT_MODULE();
@@ -33,8 +36,11 @@ static VydiaRNFileUploader *sharedInstance;
         uploadId = 0;
         _responsesData = [NSMutableDictionary dictionary];
         _urlSession = nil;
+        _urlForegroundSession = nil;
         backgroundSessionCompletionHandler = nil;
         self.isObserving = NO;
+        timeoutIntervalForResource = 604800;
+        timeoutIntervalForRequest = 60;
     }
     return self;
 }
@@ -93,6 +99,7 @@ static VydiaRNFileUploader *sharedInstance;
     // why was the delay even needed?
     //NSLog(@"RNBU startObserving: recreate urlSession if necessary");
     [self urlSession];
+    [self urlForegroundSession];
 }
 
 -(void)stopObserving {
@@ -210,7 +217,9 @@ RCT_EXPORT_METHOD(startUpload:(NSDictionary *)options resolve:(RCTPromiseResolve
     NSString *customUploadId = options[@"customUploadId"];
     NSDictionary *headers = options[@"headers"];
     NSDictionary *parameters = options[@"parameters"];
+    BOOL isBackground = [options[@"mode"] isEqualToString:@"background"] ;
 
+    NSURLSession *currentSession = isBackground ? _urlSession : _urlForegroundSession;
 
     NSString *thisUploadId = customUploadId;
 
@@ -267,7 +276,7 @@ RCT_EXPORT_METHOD(startUpload:(NSDictionary *)options resolve:(RCTPromiseResolve
             NSData *httpBody = [self createBodyWithBoundary:uuidStr path:fileURI parameters: parameters fieldName:fieldName];
 
             [request setHTTPBody: httpBody];
-            uploadTask = [[self urlSession] uploadTaskWithStreamedRequest:request];
+            uploadTask = [currentSession uploadTaskWithStreamedRequest:request];
 
 
         } else {
@@ -276,7 +285,7 @@ RCT_EXPORT_METHOD(startUpload:(NSDictionary *)options resolve:(RCTPromiseResolve
                 return;
             }
 
-            uploadTask = [[self urlSession] uploadTaskWithRequest:request fromFile:[NSURL URLWithString: fileURI]];
+            uploadTask = [currentSession uploadTaskWithRequest:request fromFile:[NSURL URLWithString: fileURI]];
         }
 
         uploadTask.taskDescription = thisUploadId;
@@ -301,10 +310,25 @@ RCT_EXPORT_METHOD(cancelUpload: (NSString *)cancelUploadId resolve:(RCTPromiseRe
             if ([uploadTask.taskDescription isEqualToString:cancelUploadId]){
                 // == checks if references are equal, while isEqualToString checks the string value
                 [uploadTask cancel];
+                resolve([NSNumber numberWithBool:YES]);
+                return ;
             }
         }
     }];
-    resolve([NSNumber numberWithBool:YES]);
+
+    [_urlForegroundSession getTasksWithCompletionHandler:^(NSArray *dataTasks, NSArray *uploadTasks, NSArray *downloadTasks) {
+        for (NSURLSessionTask *uploadTask in uploadTasks) {
+            if ([uploadTask.taskDescription isEqualToString:cancelUploadId]){
+                // == checks if references are equal, while isEqualToString checks the string value
+                [uploadTask cancel];
+                resolve([NSNumber numberWithBool:YES]);
+                return ;
+            }
+        }
+    }];
+
+    resolve([NSNumber numberWithBool:NO]);
+    
 }
 
 
@@ -313,11 +337,25 @@ RCT_EXPORT_METHOD(cancelUpload: (NSString *)cancelUploadId resolve:(RCTPromiseRe
  */
 RCT_REMAP_METHOD(getRemainingBgTime, getRemainingBgTimeResolver:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject) {
 
-    dispatch_sync(dispatch_get_main_queue(), ^(void){
-        double time = [[UIApplication sharedApplication] backgroundTimeRemaining];
-        //NSLog(@"Background xx time Remaining: %f", time);
-        resolve([NSNumber numberWithDouble:time]);
+    @try{
+
+        dispatch_async(dispatch_get_main_queue(), ^(void){
+
+            @try{
+                double time = [[UIApplication sharedApplication] backgroundTimeRemaining];
+                NSLog(@"Background xx time Remaining: %f", time);
+                resolve([NSNumber numberWithDouble:time]);
+            }
+            @catch (NSException *exception) {
+                NSLog(@"RNBU getRemainingBgTime error: %@", exception);
+                reject(@"RN Uploader", exception.name, nil);
+            }
     });
+    }
+    @catch (NSException *exception) {
+        NSLog(@"RNBU getRemainingBgTime error: %@", exception);
+        reject(@"RN Uploader", exception.name, nil);
+    }
 }
 
 // Let the OS it can suspend, must be called after enqueing all requests
@@ -346,7 +384,7 @@ RCT_REMAP_METHOD(beginBackgroundTask, beginBackgroundTaskResolver:(RCTPromiseRes
     __block NSUInteger taskId = UIBackgroundTaskInvalid;
 
     taskId = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
-        //NSLog(@"RNBU beginBackgroundTaskWithExpirationHandler id: %ul", taskId);
+        NSLog(@"RNBU beginBackgroundTaskWithExpirationHandler id: %u .", taskId);
 
         // do not use the other send event cause it has a delay
         // always send expire event, even if task id is invalid
@@ -356,8 +394,8 @@ RCT_REMAP_METHOD(beginBackgroundTask, beginBackgroundTaskResolver:(RCTPromiseRes
 
         if (taskId != UIBackgroundTaskInvalid){
 
-            //double time = [[UIApplication sharedApplication] backgroundTimeRemaining];
-            //NSLog(@"Background xx time Remaining: %f", time);
+            double time = [[UIApplication sharedApplication] backgroundTimeRemaining];
+            NSLog(@"Background xx time Remaining: %f", time);
 
             // dispatch async so we give time to JS to finish
             // we have about 3-4 seconds
@@ -365,6 +403,7 @@ RCT_REMAP_METHOD(beginBackgroundTask, beginBackgroundTaskResolver:(RCTPromiseRes
             dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, delayInSeconds * NSEC_PER_SEC);
 
             dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+                NSLog(@"RNBU force endBackgroundTask. id= %u .", taskId);
                 [[UIApplication sharedApplication] endBackgroundTask: taskId];
             });
 
@@ -384,15 +423,46 @@ RCT_EXPORT_METHOD(endBackgroundTask: (NSUInteger)taskId resolve:(RCTPromiseResol
             [[UIApplication sharedApplication] endBackgroundTask: taskId];
         }
 
-        //NSLog(@"RNBU endBackgroundTask id: %ul", taskId);
+        NSLog(@"RNBU endBackgroundTask id: %u .", taskId);
         resolve([NSNumber numberWithBool:YES]);
     }
     @catch (NSException *exception) {
-        //NSLog(@"RNBU endBackgroundTask error: %@", exception);
+        NSLog(@"RNBU endBackgroundTask error: %@", exception);
         reject(@"RN Uploader", exception.name, nil);
     }
 }
 
+
+/*
+ * Config NSURLSessionConfiguration parameters.
+ * Options are passed in as the first argument as a js hash:
+ * {
+ *   timeoutIntervalForResource: number
+ *   timeoutIntervalForRequest: number
+ * }
+ *
+ * Returns a promise 
+ */
+RCT_EXPORT_METHOD(config:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+{
+    @try{
+       
+        if (options[@"timeoutIntervalForResource"]) {
+            timeoutIntervalForResource = [options[@"timeoutIntervalForResource"] intValue];
+        }
+
+        if (options[@"timeoutIntervalForRequest"]) {
+            timeoutIntervalForRequest = [options[@"timeoutIntervalForRequest"] intValue];
+        }
+
+        //NSLog(@"RNBU config sucess");
+        resolve(nil);
+    }
+    @catch (NSException *exception) {
+        NSLog(@"RNBU config error: %@", exception);
+        reject(@"RN Uploader", exception.name, nil);
+    }
+}
 
 
 - (NSData *)createBodyWithBoundary:(NSString *)boundary
@@ -438,15 +508,30 @@ RCT_EXPORT_METHOD(endBackgroundTask: (NSUInteger)taskId resolve:(RCTPromiseResol
         if (_urlSession == nil) {
             NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:BACKGROUND_SESSION_ID];
 
-            // UPDATE: Enforce a timeout here because we will otherwise
-            // not get errors if the server times out
-            sessionConfiguration.timeoutIntervalForResource = 5 * 60;
+            sessionConfiguration.timeoutIntervalForResource = timeoutIntervalForResource;
+            sessionConfiguration.timeoutIntervalForRequest = timeoutIntervalForRequest;
 
             _urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:self delegateQueue:nil];
         }
     }
 
     return _urlSession;
+}
+
+- (NSURLSession *)urlForegroundSession {
+    @synchronized (self) {
+        if (_urlForegroundSession == nil) {
+            // Create a default NSURLSessionConfiguration object
+            NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+
+            sessionConfiguration.timeoutIntervalForResource = timeoutIntervalForResource;
+            sessionConfiguration.timeoutIntervalForRequest = timeoutIntervalForRequest;
+
+            _urlForegroundSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:self delegateQueue:nil];
+        }
+    }
+
+    return _urlForegroundSession;
 }
 
 #pragma NSURLSessionTaskDelegate

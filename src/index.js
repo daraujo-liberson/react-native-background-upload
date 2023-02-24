@@ -29,13 +29,14 @@ export type StartUploadArgs = {
   parameters?: { [string]: string },
   headers?: Object,
   notification?: NotificationArgs,
+  mode: 'background' | 'foreground'
 };
 
 const NativeModule =
   NativeModules.VydiaRNFileUploader || NativeModules.RNFileUploader; // iOS is VydiaRNFileUploader and Android is RNFileUploader
 const eventPrefix = 'RNFileUploader-';
 
-const eventEmitter = new NativeEventEmitter(NativeModule);
+const eventEmitter = Platform.OS === 'ios' ? new NativeEventEmitter(NativeModule) : new NativeEventEmitter();
 
 // add event listeners so they always fire on the native side
 // no longer needed.
@@ -160,9 +161,18 @@ export const beginBackgroundTask = (): Promise<number> => {
 
 // marks the end of background task using the id returned by begin
 // failing to call this might end up on app termination
-export const endBackgroundTask = (id: number) => {
+export const endBackgroundTask = async (id: number) : Promise<boolean>=> {
   if (Platform.OS === 'ios') {
-    NativeModule.endBackgroundTask(id);
+    return NativeModule.endBackgroundTask(id);
+  }
+  return false
+};
+
+
+// init module configuration
+export const config = async (config)  => {
+  if (Platform.OS === 'ios') {
+    await NativeModule.config(config);
   }
 };
 
@@ -175,4 +185,5 @@ export default {
   getRemainingBgTime,
   beginBackgroundTask,
   endBackgroundTask,
+  config
 };
